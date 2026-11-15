@@ -43,7 +43,7 @@ def admin_access(request: Request):
     if token:
         if not secrets.compare_digest(request.headers.get("authorization", ""), "Bearer " + token):
             raise HTTPException(401, "Owner authorization required")
-    elif request.client.host not in {"127.0.0.1", "::1", "testclient"}:
+    elif os.getenv('RAILWAY_ENVIRONMENT_ID') or request.client.host not in {"127.0.0.1", "::1", "testclient"}:
         raise HTTPException(403, "Configure owner authorization for remote dashboard access")
 
 

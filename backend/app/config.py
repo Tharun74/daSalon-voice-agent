@@ -14,7 +14,7 @@ TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata")
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
 
 # Storage paths
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data")))
 CHROMA_DIR = DATA_DIR / "chroma"
 UPLOADS_DIR = DATA_DIR / "uploads"
 MONGO_BACKUP_FILE = DATA_DIR / "mongo_state.json"

@@ -84,7 +84,7 @@ def partner_operation(salon_id: str, operation: str, payload: ToolRequest):
 
 def call_partner(operation, arguments, salon_id, session_id=None):
     """Only this adapter changes when an authorized Partner API is provided."""
-    base = os.getenv('PARTNER_API_BASE_URL', 'http://127.0.0.1:8001/mock-partner').rstrip('/')
+    base = os.getenv('PARTNER_API_BASE_URL', f"http://127.0.0.1:{os.getenv('PORT', '8001')}/mock-partner").rstrip('/')
     try:
         response = httpx.post(f'{base}/{salon_id}/{operation}',
             json={'arguments': arguments, 'session_id': session_id or ''}, timeout=12)
