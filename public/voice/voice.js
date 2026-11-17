@@ -2,6 +2,8 @@
 class SalonVoice {
   constructor(context, append, host) {
     this.context = context;
+    this.inline = host.dataset.presentation === 'hero';
+    this.view = 'voice';
     this.append = append;
     this.queue = [];
     this.epoch = 0;
@@ -17,14 +19,16 @@ class SalonVoice {
     host.append(this.button);
     this.button.onclick = () => this.open();
 
-    this.panel = document.createElement('dialog');
+    this.panel = document.createElement(this.inline ? 'section' : 'dialog');
     this.panel.className = 'voice-panel';
+    if (this.inline) this.panel.classList.add('voice-inline');
+    this.panel.dataset.view = 'voice';
     this.panel.setAttribute('aria-label', 'Salon voice assistant');
     this.panel.innerHTML = `
       <div class="voice-card-header">
         <span class="voice-card-title" data-voice-salon-name>Salon guide</span>
         <div class="voice-card-actions">
-          <button type="button" tabindex="0" class="voice-icon-btn voice-end-btn" data-end aria-label="End call / switch to text" title="End call">
+          <button type="button" tabindex="0" class="voice-icon-btn voice-end-btn" data-end aria-label="End voice conversation" title="End call">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-phone-off" aria-hidden="true">
               <path d="M10.1 13.9a14 14 0 0 0 3.732 2.668 1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2 18 18 0 0 1-12.728-5.272"></path>
               <path d="M22 2 2 22"></path>
@@ -45,7 +49,7 @@ class SalonVoice {
           <div class="voice-orb-ripple" aria-hidden="true"></div>
           <div class="voice-orb" aria-hidden="true">
             <div class="voice-orb-inner"></div>
-            <canvas class="voice-orb-canvas" width="160" height="160" aria-hidden="true"></canvas>
+            <canvas class="voice-orb-canvas" width="360" height="360" aria-hidden="true"></canvas>
           </div>
           <span class="voice-orb-mark" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mic" aria-hidden="true">
@@ -57,8 +61,13 @@ class SalonVoice {
         </button>
       </div>
 
-      <p class="voice-prompt-text" data-status>Speak or type a message</p>
-      <p class="voice-disclosure">AI concierge · Conversations are transcribed</p>
+      <div class="voice-text-heading"><strong>Glow concierge</strong></div>
+      <p class="voice-prompt-text" data-status role="status" aria-live="polite">Tap to talk to Glow</p>
+      <p class="voice-disclosure">AI concierge · Microphone starts only when you tap</p>
+      <div class="voice-view-switch" role="group" aria-label="Conversation format">
+        <button type="button" data-view="voice" aria-pressed="true">Voice</button>
+        <button type="button" data-view="text" aria-pressed="false">Text conversation</button>
+      </div>
 
       <div class="transcript-lines scroll-fade" data-transcript-container>
         <div class="transcript-inner">
@@ -86,8 +95,8 @@ class SalonVoice {
         </form>
       </details>
       <form class="voice-input-form" data-voice-form>
-        <input type="text" data-voice-input placeholder="Type a message" aria-label="Message the voice agent" class="voice-text-input" autocomplete="off" />
-        <button type="submit" data-voice-send class="voice-send-btn">Send</button>
+        <input type="text" data-voice-input placeholder="Ask your salon concierge…" aria-label="Message the voice agent" class="voice-text-input" autocomplete="off" />
+        <button type="submit" data-voice-send class="voice-send-btn" aria-label="Send message" title="Send message"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></button>
       </form>
 
       <!-- Headless / hidden controls for automated testing and programmatic contract -->
@@ -103,7 +112,8 @@ class SalonVoice {
         <pre data-debug>No turn yet</pre>
       </div>`;
 
-    document.body.append(this.panel);
+    (this.inline ? host : document.body).append(this.panel);
+    if (this.inline) this.button.hidden = true;
     this.status = this.panel.querySelector('[data-status]');
     this.captions = this.panel.querySelector('.voice-captions');
     this.userRow = this.panel.querySelector('[data-user-row]');
@@ -124,6 +134,10 @@ class SalonVoice {
     this.mode = this.panel.querySelector('[data-mode]');
     this.textInput = this.panel.querySelector('[data-voice-input]');
     this.textForm = this.panel.querySelector('[data-voice-form]');
+    this.panel.querySelectorAll('.voice-view-switch button').forEach(button => {
+      button.onclick = () => this.setView(button.dataset.view);
+    });
+    this.panel.querySelector('.phone-step').hidden = true;
     this.panel.querySelector('[data-confirm-booking]').onclick = () => {
       if (this.submitting) return;
       this.panel.querySelector('[data-review]').hidden = true;
@@ -133,6 +147,7 @@ class SalonVoice {
       else this.submit(null, 'Yes, book it.').catch(error => this.failure(error));
     };
     this.panel.querySelector('[data-change-booking]').onclick = () => {
+      this.setView('text');
       this.textInput.placeholder = 'What would you like to change?';
       this.textInput.focus();
     };
@@ -163,7 +178,7 @@ class SalonVoice {
     const orbBtn = this.panel.querySelector('[data-orb-button]');
     if (orbBtn) {
       orbBtn.onclick = () => {
-        if (!this.listening) this.listen().catch(e => this.failure(e));
+        if (!this.listening) this.startVoice().catch(e => this.failure(e));
         else { this.interrupt(); this.stopInput(); this.ws?.close(); this.ws = null; this.state('idle', 'Microphone off. You can still type.'); }
       };
     }
@@ -186,6 +201,7 @@ class SalonVoice {
         this.interrupt();
         this.textInput.value = '';
         this.setUserText(msg);
+        this.navigateForRequest(msg);
         if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({type:'text', text:msg}));
         else this.submit(null, msg).catch(err => this.failure(err));
       });
@@ -194,9 +210,44 @@ class SalonVoice {
     this.panel.addEventListener('cancel', e => { e.preventDefault(); this.close(); });
     this.mode.onchange = () => { this.stopInput(); this.ws?.close(); this.ws = null; this.interrupt(); this.state('idle'); };
     this.initOrbCanvas();
+    if (this.inline) { this.state('idle', 'Tap to talk to Glow'); this.startOrbCanvas(); }
+  }
+
+  async setView(view) {
+    this.cancelMenuFollowup();
+    this.menuNavigationPending = false;
+    this.view = view;
+    this.panel.dataset.view = view;
+    this.panel.querySelectorAll('.voice-view-switch button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.view === view)));
+    if (view === 'text') {
+      this.interrupt(); this.stopInput(); this.ws?.close(); this.ws = null;
+      await this.open();
+      if (!this.cfg?.enabled || this.view !== 'text') return;
+      this.state('idle', 'How can I help with your salon visit?');
+      this.textInput.focus({preventScroll:true});
+      this.followTranscript = true; this.scrollTranscript();
+    } else {
+      this.state('idle', 'Tap the orb to start speaking');
+    }
+  }
+
+  async startVoice(message) {
+    if (this.startingVoice) return;
+    this.startingVoice = true;
+    this.view = 'voice'; this.panel.dataset.view = 'voice';
+    this.panel.querySelectorAll('.voice-view-switch button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.view === 'voice')));
+    try {
+      await this.open();
+      if (!this.cfg?.enabled || this.view !== 'voice') return;
+      await this.listen();
+      if (message && this.ws?.readyState === WebSocket.OPEN) {
+        this.setUserText(message); this.ws.send(JSON.stringify({type:'text', text:message}));
+      }
+    } finally { this.startingVoice = false; }
   }
 
   setUserText(text) {
+    this.cancelMenuFollowup();
     // A new utterance may change the draft; only a fresh server state can
     // re-enable its confirmation controls.
     this.panel.querySelector('[data-review]').hidden = true;
@@ -205,6 +256,51 @@ class SalonVoice {
 
   setAssistantText(text) {
     this.updateMessage('assistant', text);
+    if (this.view === 'text' && this.menuNavigationPending) {
+      this.showServices();
+      this.armMenuFollowup();
+    }
+  }
+
+  navigateForRequest(text) {
+    // Use completed customer turns, so interim speech and agent replies cannot move the page.
+    if (!this.inline || typeof text !== 'string') return;
+    const request = text.toLowerCase().replace(/[’']/g, '').replace(/\s+/g, ' ').trim();
+    const asksForMenu = /\b(?:services?|treatments?|menu)\b/.test(request) &&
+      /\b(?:what|which|show|list|see|view|browse|offer|available|provide|tell|know|have)\b/.test(request);
+    this.menuNavigationPending = (asksForMenu || /^(?:your |the )?(?:services|treatments|menu)(?: please)?[?.!]*$/.test(request)) &&
+      !/\b(?:dont|do not|no need to|stop|price|prices|cost|aftercare)\b/.test(request);
+  }
+
+  showServices() {
+    if (!this.menuNavigationPending) return;
+    this.menuNavigationPending = false;
+    const section = document.getElementById('services');
+    if (!section) return;
+    this.menuAwaitingChoice = true;
+    section.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block:'start'});
+  }
+
+  cancelMenuFollowup() {
+    clearTimeout(this.menuFollowupTimer);
+    this.menuFollowupTimer = null;
+    this.menuAwaitingChoice = false;
+  }
+
+  armMenuFollowup() {
+    if (!this.menuAwaitingChoice || this.menuFollowupTimer) return;
+    this.menuFollowupTimer = setTimeout(() => {
+      this.menuFollowupTimer = null;
+      if (!this.active || !this.menuAwaitingChoice || this.playing || this.destroyed) return;
+      this.menuAwaitingChoice = false;
+      const text = "Is there something else you're looking for?";
+      if (this.view === 'voice' && this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({type:'menu_followup'}));
+      } else {
+        this.setAssistantText(text);
+        if (this.view === 'voice') { this.queue.push({text, language:this.cfg.language_default}); this.playNext(); }
+      }
+    }, 5000);
   }
 
   updateMessage(role, text) {
@@ -229,6 +325,7 @@ class SalonVoice {
       const response = await fetch(`/api/backend/demo/session/${this.bound.salon_id}/${this.bound.session_id}`);
       if (!response.ok || !this.active) return;
       const state = await response.json();
+      this.panel.querySelector('.phone-step').hidden = !state.phone_required;
       const review = this.panel.querySelector('[data-review]');
       review.hidden = !state.review || state.phone_required;
       this.panel.querySelector('[data-booking-unknown]').hidden = state.booking_status !== 'unknown';
@@ -264,107 +361,69 @@ class SalonVoice {
   }
 
   initOrbCanvas() {
-    const canvas = this.panel.querySelector('.voice-orb-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let animId = null;
-    let t = 0;
-
-    const render = () => {
-      if (!this.active) {
-        if (animId) cancelAnimationFrame(animId);
-        animId = null;
-        return;
+    const canvas=this.panel.querySelector('.voice-orb-canvas');
+    const ctx=canvas?.getContext('2d');
+    if(!ctx) return;
+    let frame=null, last=0, time=0, energy=0, disposed=false;
+    const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+    const render=(now=0)=>{
+      frame=null;
+      if(disposed || this.destroyed || (!this.active && !this.inline)) return;
+      const bounds=canvas.getBoundingClientRect();
+      if(document.hidden || bounds.bottom<0 || bounds.top>innerHeight || (now && now-last<33)) {
+        if(!reduced.matches) frame=requestAnimationFrame(render); return;
       }
-      const state = this.panel.dataset.state || 'idle';
-      const speed = state === 'speaking' ? 0.038 : state === 'listening' ? 0.026 : 0.010;
-      t += speed;
-
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-
-      const cx = w / 2;
-      const cy = h / 2;
-      const r = w * 0.44;
-
-      // Project luminous ribbons around a shaded sphere, with depth-dependent light.
-      const sphere = ctx.createRadialGradient(cx-r*.4, cy-r*.5, r*.04, cx, cy, r);
-      sphere.addColorStop(0, '#f4f9d9');
-      sphere.addColorStop(.35, '#bbd9a2');
-      sphere.addColorStop(.72, '#5b8a70');
-      sphere.addColorStop(1, '#163c36');
-      ctx.fillStyle = sphere;
-      ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
-      ctx.save(); ctx.clip();
-      for (let band = 0; band < 9; band++) {
-        const latitude = (band / 8 - .5) * Math.PI * .87;
-        let previous = null;
-        for (let step = 0; step <= 100; step++) {
-          const angle = step / 100 * Math.PI * 2 + t;
-          const wave = latitude + Math.sin(angle * 3 + t * .7) * .12;
-          const x = Math.cos(wave) * Math.cos(angle);
-          const y = Math.sin(wave);
-          const z = Math.cos(wave) * Math.sin(angle);
-          const tilt = -.38;
-          const px = cx + (x * Math.cos(tilt) - y * Math.sin(tilt)) * r;
-          const py = cy + (x * Math.sin(tilt) + y * Math.cos(tilt)) * r;
-          if (previous && z > 0) {
-            ctx.strokeStyle = `rgba(239,255,216,${.12 + z*.55})`;
-            ctx.lineWidth = .7 + z * 1.3;
-            ctx.beginPath(); ctx.moveTo(previous.x, previous.y); ctx.lineTo(px,py); ctx.stroke();
-          }
-          previous = {x:px,y:py};
+      last=now;
+      const state=this.panel.dataset.state;
+      energy+=((state==='speaking'?.7:state==='listening'?Math.min(1,(this.orbEnergy||0)*9):.06)-energy)*.1;
+      if(!reduced.matches) time+=.028+energy*.022;
+      const w=canvas.width,c=w/2,r=w*.475;
+      ctx.clearRect(0,0,w,w);
+      ctx.save(); ctx.translate(c,c);
+      // Folded satin petals make a small pearl rose, rather than an electronic glow.
+      const base=ctx.createRadialGradient(-r*.3,-r*.4,0,0,0,r);
+      base.addColorStop(0,'#fffdf8');base.addColorStop(.55,'#f4e9d4');base.addColorStop(1,'#cbae7c');
+      ctx.fillStyle=base;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+      ctx.clip();
+      for(let layer=0;layer<2;layer++) {
+        const count=layer===0?8:6;
+        const size=layer===0?r:r*.69;
+        for(let i=0;i<count;i++) {
+          const rotation=reduced.matches?0:time*(layer===0?.12:-.17);
+          const angle=i/count*Math.PI*2+layer*.55+rotation;
+          const bloom=1+(reduced.matches?0:Math.sin(time*1.3+i*.7+layer)*.024+energy*.035);
+          ctx.save();ctx.rotate(angle);ctx.scale(bloom,bloom);
+          const satin=ctx.createLinearGradient(-size*.65,-size*.2,size*.4,-size);
+          satin.addColorStop(0,'#b8905080');satin.addColorStop(.22,'#e6cfa5');
+          satin.addColorStop(.52,'#fffdf4');satin.addColorStop(.8,layer===0?'#f1dfc1':'#f5e4d0');satin.addColorStop(1,'#cda771');
+          ctx.fillStyle=satin;ctx.strokeStyle='#fff8eab0';ctx.lineWidth=1.2;
+          ctx.shadowColor='#a27c3530';ctx.shadowBlur=w*.028;
+          ctx.beginPath();ctx.moveTo(-size*.09,size*.07);
+          ctx.bezierCurveTo(-size*.96,-size*.03,-size*.91,-size*.82,-size*.3,-size*.98);
+          ctx.bezierCurveTo(size*.14,-size*1.12,size*.78,-size*.56,size*.46,-size*.13);
+          ctx.bezierCurveTo(size*.31,size*.09,size*.1,size*.18,-size*.09,size*.07);
+          ctx.fill();ctx.stroke();ctx.restore();
         }
       }
+      ctx.shadowBlur=0;
+      const heart=ctx.createRadialGradient(-9,-11,0,0,0,r*.25);
+      heart.addColorStop(0,'#fffef8');heart.addColorStop(.7,'#f2e4c9');heart.addColorStop(1,'#d2b37b');
+      ctx.fillStyle=heart;ctx.beginPath();ctx.arc(0,0,r*.23,0,Math.PI*2);ctx.fill();
       ctx.restore();
-      // A small soft reflection completes the glass-like volume.
-      for (let i = 0; i < 5; i++) {
-        const angle = t * 0.8 + (i * Math.PI * 0.4);
-        const radiusDist = (r * 0.28) * Math.sin(t * 0.5 + i);
-        const ox = cx + Math.cos(angle) * radiusDist;
-        const oy = cy + Math.sin(angle * 1.1) * radiusDist;
-        const blobR = r * (0.45 + 0.15 * Math.cos(t * 0.6 + i));
-
-        const grad = ctx.createRadialGradient(ox, oy, 2, cx, cy, blobR);
-        if (i % 2 === 0) {
-          grad.addColorStop(0, getComputedStyle(this.panel).getPropertyValue('--voice-value-52').trim());
-          grad.addColorStop(0.5, getComputedStyle(this.panel).getPropertyValue('--voice-value-53').trim());
-          grad.addColorStop(1, 'transparent');
-        } else {
-          grad.addColorStop(0, getComputedStyle(this.panel).getPropertyValue('--voice-value-54').trim());
-          grad.addColorStop(0.6, getComputedStyle(this.panel).getPropertyValue('--voice-value-55').trim());
-          grad.addColorStop(1, 'transparent');
-        }
-
-        ctx.globalAlpha = .13;
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(ox, oy, blobR, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-
-      if (!matchMedia('(prefers-reduced-motion: reduce)').matches) animId = requestAnimationFrame(render);
+      if(!reduced.matches) frame=requestAnimationFrame(render);
     };
-
-    this.startOrbCanvas = () => {
-      if (!animId) render();
-    };
-    this.stopOrbCanvas = () => {
-      if (animId) {
-        cancelAnimationFrame(animId);
-        animId = null;
-      }
-    };
+    this.startOrbCanvas=()=>{if(!frame && !disposed) render();};
+    this.stopOrbCanvas=()=>{if(frame) cancelAnimationFrame(frame);frame=null;};
+    this.destroyOrbCanvas=()=>{this.stopOrbCanvas();disposed=true;};
   }
 
   state(state, message) {
+    if ((state === 'listening' || state === 'idle') && !this.playing) this.armMenuFollowup();
     this.panel.dataset.state = state;
     if (message) {
       this.status.textContent = message;
     } else if (state === 'idle') {
-      this.status.textContent = 'Tap the microphone to talk, or type below';
+      this.status.textContent = this.view === 'text' ? 'Ask anything about your salon visit' : 'Tap to talk to Glow';
     } else if (state === 'listening' && this.mode?.value === 'live') {
       this.status.textContent = 'Listening... speak naturally';
     } else {
@@ -382,10 +441,10 @@ class SalonVoice {
   }
 
   async open() {
-    if (this.active) { this.textInput.focus(); return; }
+    if (this.active && this.cfg) { if (this.view === 'text') this.textInput.focus(); return; }
     this.bound = {...this.context()};
     this.active = true;
-    this.panel.show();
+    this.panel.show?.();
     this.state('idle', 'Connecting to Glow…');
     try {
       this.bound = {...this.context()};
@@ -419,8 +478,10 @@ class SalonVoice {
       }
       if (!this.transcriptInner.children.length) this.setAssistantText(this.cfg.greeting);
 
-      this.playbackContext = new AudioContext({sampleRate:24000});
-      await this.playbackContext.resume();
+      if (this.view === 'voice') {
+        this.playbackContext ||= new AudioContext({sampleRate:24000});
+        await this.playbackContext.resume();
+      }
       this.pcmSources = new Set();
       this.panel.scrollTop = 0;
       this.startOrbCanvas();
@@ -431,10 +492,10 @@ class SalonVoice {
       // Focus text input without scrolling dialog
       setTimeout(() => {
         this.panel.scrollTop = 0;
-        this.textInput?.focus({preventScroll: true});
+        if (this.view === 'text') this.textInput?.focus({preventScroll: true});
       }, 50);
 
-    } catch (e) { this.state('idle', e.message); this.setAssistantText('Please check that the local backend is running, then reopen the concierge.'); }
+    } catch (e) { this.cfg = null; this.active = false; this.state('idle', 'Connection unavailable. Try again or choose text conversation.'); }
   }
 
   valid() {
@@ -452,15 +513,18 @@ class SalonVoice {
     if (!r.ok) throw new Error('Unable to load voice settings.');
     this.cfg = await r.json();
     if (!this.cfg.enabled) throw new Error('Voice has been disabled for this salon.');
+    if (this.view !== 'voice' || !this.active) return;
     this.listening = true;
     if (this.cfg.stt === 'browser' || this.browserFallback) return this.browserListen();
-    if (this.mode.value === 'live') await this.connect();
     if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) {
       this.listening = false;
       throw new Error('This browser cannot stream microphone audio. Please use a current browser or type.');
     }
     this.stream = await navigator.mediaDevices.getUserMedia({audio: {channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true}});
-    if (!this.valid()) return this.stopInput();
+    if (!this.valid() || this.view !== 'voice') return this.stopInput();
+    this.playbackContext ||= new AudioContext({sampleRate:24000});
+    await this.playbackContext.resume();
+    if (this.mode.value === 'live') await this.connect();
     this.audioContext = new AudioContext();
     await this.audioContext.audioWorklet.addModule('/voice/voice-worklet.js');
     await this.audioContext.resume();
@@ -479,6 +543,7 @@ class SalonVoice {
       const pcmBuffer = (data && data.pcm) ? data.pcm : data;
       const rms = (data && data.rms != null) ? data.rms
         : Math.sqrt(new Int16Array(pcmBuffer).reduce((n, v) => n + (v / 32768) ** 2, 0) / (pcmBuffer.byteLength / 2));
+      this.orbEnergy = rms;
 
       if (this.mode.value === 'live' && this.ws?.readyState === WebSocket.OPEN) {
         this.speechFrames = rms > 0.025 ? this.speechFrames + 1 : 0;
@@ -520,6 +585,7 @@ class SalonVoice {
           const text = result[0].transcript.trim();
           const confidence = result[0].confidence;
           if (confidence > 0 && confidence < .5) { this.state('listening', 'I could not hear clearly. Please repeat.'); continue; }
+          this.navigateForRequest(text);
           if (this.mode.value === 'live' && this.ws?.readyState === WebSocket.OPEN) {
             this.interrupt();
             this.ws.send(JSON.stringify({type:'text', text}));
@@ -606,9 +672,11 @@ class SalonVoice {
     }
     this.append('user',result.transcript); this.append('bot',result.reply);
     this.setUserText(result.transcript);
+    this.navigateForRequest(result.transcript);
     this.setAssistantText(result.reply);
     this.refreshBooking();
     this.panel.querySelector('[data-debug]').textContent = JSON.stringify(result.timings,null,2);
+    if (this.view === 'text') { this.state('idle'); return; }
     if (result.audio_chunks?.length) {
       for (const bytes of result.audio_chunks) this.queue.push({url:`data:audio/wav;base64,${bytes}`});
     } else this.queue.push({text:result.speech_text,language:result.language,pace:this.cfg.pace});
@@ -633,6 +701,7 @@ class SalonVoice {
         this.generation = event.generation;
         this.playPCM(event);
       } else if (event.type === 'playback_pause') {
+        this.cancelMenuFollowup();
         this.pausePlayback();
       } else if (event.type === 'playback_resume') {
         this.playbackContext?.resume();
@@ -646,6 +715,7 @@ class SalonVoice {
         if (event.interrupted) this.clearPlayback();
         if (!this.playing) this.state(event.state);
       } else if (event.type === 'final_transcript') {
+        this.navigateForRequest(event.text);
         this.append('user',event.text); this.setUserText(event.text); this.delta = '';
       } else if (event.type === 'assistant_text_delta') {
         this.delta = (this.delta || '') + event.text; this.setAssistantText(this.delta);
@@ -673,6 +743,7 @@ class SalonVoice {
   playPCM(event) {
     const ctx = this.playbackContext;
     if (!ctx) return;
+    this.showServices();
     const bytes = Uint8Array.from(atob(event.audio), c => c.charCodeAt(0));
     const samples = new DataView(bytes.buffer);
     const buffer = ctx.createBuffer(1, bytes.length / 2, event.sample_rate);
@@ -706,6 +777,7 @@ class SalonVoice {
 
   playNext() {
     if (this.playing || !this.queue.length || !this.valid()) return;
+    this.showServices();
     const item = this.queue.shift(), epoch = this.epoch;
     this.playing = true; this.state('speaking');
     const done = () => {
@@ -750,6 +822,8 @@ class SalonVoice {
   }
 
   close() {
+    this.cancelMenuFollowup();
+    this.menuNavigationPending = false;
     this.active = false;
     this.stopOrbCanvas?.();
     this.interrupt();
@@ -758,7 +832,8 @@ class SalonVoice {
     this.ws = null;
     this.playbackContext?.close(); this.playbackContext = null;
     if (this.panel.open) this.panel.close();
-    this.button.focus();
+    if (this.inline) { this.state('idle', 'Call ended. Tap the orb whenever you’re ready.'); this.startOrbCanvas?.(); }
+    else this.button.focus();
   }
 
   failure(e) {

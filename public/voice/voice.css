@@ -17,3 +17,5 @@
 .voice-prompt-text{margin:3px 0}.voice-disclosure{margin-bottom:5px}
 @media(max-width:550px){.voice-panel{width:calc(100vw - 30px);height:calc(100dvh - 115px)}.voice-orb-button{width:88px;height:88px}.transcript-lines{max-height:none;min-height:120px}.voice-hero{padding-top:10px}}
 @media(prefers-reduced-motion:reduce){.voice-orb-button{transition:none}.voice-orb-button:hover{transform:none}}
+
+.voice-text-heading{display:none}

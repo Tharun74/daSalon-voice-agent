@@ -6,6 +6,7 @@ import time
 import uuid
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from app.chat import run_turn_stream
+from app.service_browsing import is_menu_request
 from app.voice import stt, tts
 from app.voice.formatter import SentenceChunker, speakable, language_for
 from app.voice.session import (validate_session, reserve, limit, EndpointDetector,
@@ -114,7 +115,7 @@ async def voice_socket(ws: WebSocket):
                     result = None
                     while not token.is_set():
                         pending = asyncio.create_task(asyncio.to_thread(next_event, iterator))
-                        if tool_wait and cfg.filler_enabled and not filler_sent:
+                        if tool_wait and cfg.filler_enabled and not filler_sent and not is_menu_request(text):
                             try:
                                 event = await asyncio.wait_for(asyncio.shield(pending), timeout=1)
                             except asyncio.TimeoutError:

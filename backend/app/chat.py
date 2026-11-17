@@ -111,6 +111,9 @@ def _turn_events_unlocked(
         new_convo_events.append(user_msg_entry)
         from app.conversation_policy import direct_reply
         control_reply, control = direct_reply(user_message, salon)
+        from app.service_browsing import is_menu_request, MENU_REPLY
+        if not control_reply and is_menu_request(user_message):
+            control_reply = MENU_REPLY
         if control:
             pending_booking = None
             db.conversations.update_one({'salon_id': salon_id, 'session_id': session_id},

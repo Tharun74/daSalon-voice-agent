@@ -8,12 +8,12 @@ from app.db import get_db
 class VoiceSettings(BaseModel):
     enabled: bool = True
     provider: Literal["sarvam", "browser"] = "sarvam"
-    voice_id: Literal["shubh", "ritu", "priya", "rahul", "kavya"] = "priya"
+    voice_id: Literal["simran", "ritu", "priya", "neha", "kavya", "ishita", "shreya", "rahul", "shubh"] = "simran"
     language_default: Literal["en-IN", "hi-IN", "ta-IN", "te-IN", "kn-IN", "mr-IN", "bn-IN", "gu-IN", "ml-IN", "pa-IN", "od-IN"] = "en-IN"
-    pace: float = Field(1.0, ge=0.5, le=2.0)
+    pace: float = Field(0.95, ge=0.5, le=2.0)
     greeting: str = Field("Welcome. How can I help you today?", max_length=300)
     filler_enabled: bool = True
-    filler_text: str = Field("One moment, checking that for you.", max_length=120)
+    filler_text: str = Field("Sure, one moment.", max_length=120)
 
 
 def enabled():

@@ -10,6 +10,7 @@ import time
 import uuid
 from fastapi import HTTPException, WebSocketDisconnect
 from app.chat import run_turn_stream
+from app.service_browsing import is_menu_request, MENU_FOLLOWUP
 from app.voice.streaming import LiveSTT, LiveTTS
 from app.voice.formatter import SentenceChunker, speakable, language_for
 from app.voice.session import validate_session, reserve, limit, record_usage, IDLE_SECONDS, SESSION_SECONDS
@@ -107,11 +108,15 @@ async def live_call(ws):
                         chunker = SentenceChunker()
                         spoken, tool_wait, filler_sent = '', False, False
                         llm_start = time.perf_counter()
+                        first_event = True
                         while not token.is_set():
                             pending = asyncio.create_task(asyncio.to_thread(next, iterator, None))
                             try:
-                                if tool_wait and cfg.filler_enabled and not filler_sent and language == cfg.language_default:
-                                    done, _ = await asyncio.wait({pending}, timeout=.25)
+                                # Fire filler: on tool waits OR on slow first LLM response (>600ms thinking)
+                                should_filler = cfg.filler_enabled and not filler_sent and language == cfg.language_default and not is_menu_request(text)
+                                if should_filler and (tool_wait or first_event):
+                                    timeout = .15 if tool_wait else .6
+                                    done, _ = await asyncio.wait({pending}, timeout=timeout)
                                     if not done:
                                         filler_sent = True
                                         await sentences.put(cfg.filler_text)
@@ -122,6 +127,7 @@ async def live_call(ws):
                                     pending.cancel()
                             if event is None:
                                 break
+                            first_event = False
                             if worker.done():
                                 await worker  # Surface provider failures without filling a dead queue.
                             if event['type'] == 'assistant_text_delta':
@@ -236,6 +242,9 @@ async def live_call(ws):
                         await begin(text)
                     elif kind == 'interrupt':
                         await interrupt()
+                    elif kind == 'menu_followup':
+                        await interrupt()
+                        task = asyncio.create_task(respond(MENU_FOLLOWUP, cancel, generation, time.perf_counter(), greeting=True))
                     elif kind == 'playback_done':
                         active_audio = False
                     elif kind == 'playback_started':
