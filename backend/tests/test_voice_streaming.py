@@ -43,7 +43,7 @@ def test_stream_protocol_and_cancel_cleanup(monkeypatch):
         await stt.audio(bytes(640))
         assert queries[0]['language_code']=='auto' and queries[0]['mode']=='codemix'
         assert sockets[0].sent[0]['event']=='audio_input'
-        cfg=VoiceSettings();tts=await LiveTTS(cfg).open();cfg.voice_id='rahul'
+        cfg=VoiceSettings(voice_id='priya');tts=await LiveTTS(cfg).open();cfg.voice_id='rahul'
         stream=tts.stream('Hello','ta-IN')
         assert len(await anext(stream))==640
         assert sockets[1].sent[0]['data']['speaker']=='priya'
@@ -80,9 +80,10 @@ def test_live_socket_multiple_turns_and_backchannel(monkeypatch):
         yield {'type':'result','result':{'reply':'Which day?','status':'active'}}
     monkeypatch.setenv('SARVAM_API_KEY','fake-test-key')
     monkeypatch.setenv('STT_PROVIDER','sarvam')
+    monkeypatch.setenv('VOICE_ALLOWED_ORIGINS','http://localhost:3000')
     monkeypatch.setattr(live,'LiveSTT',STT);monkeypatch.setattr(live,'LiveTTS',TTS)
     monkeypatch.setattr(live,'run_turn_stream',turns)
-    with TestClient(app).websocket_connect('/voice/ws?salon_id=glow-studio&session_id=live-stream-test',headers={'origin':'http://localhost:8000'}) as ws:
+    with TestClient(app).websocket_connect('/voice/ws?salon_id=glow-studio&session_id=live-stream-test',headers={'origin':'http://localhost:3000'}) as ws:
         def until(kind):
             for _ in range(50):
                 e=ws.receive_json()

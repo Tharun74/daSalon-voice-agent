@@ -7,12 +7,30 @@ const timers = new Map();
 let timerId = 0;
 const window = { matchMedia: () => ({ matches: false }) };
 runInNewContext(readFileSync(require('node:path').join(__dirname, '../public/voice/voice.js'), 'utf8'), {
-  window, document: { getElementById: () => ({ scrollIntoView: options => scrolls.push(options) }) }, WebSocket: { OPEN: 1 }, AbortController, FormData,
+  window, document: {
+    getElementById: () => ({ scrollIntoView: options => scrolls.push(options) }),
+    createElement: () => ({ children: [], append(...nodes) { this.children.push(...nodes); } }),
+  }, WebSocket: { OPEN: 1 }, AbortController, FormData,
   setTimeout: (callback, delay) => { const id = ++timerId; timers.set(id, {callback, delay}); return id; },
   clearTimeout: id => timers.delete(id),
   fetch: async () => ({ ok: true, json: async () => ({ transcript: 'A haircut please', reply: 'Which day?', audio_chunks: ['unused'], timings: {} }) }),
 });
 const prototype = window.SalonVoice.prototype;
+test('follow-up adds a bubble while streamed updates keep the same bubble', () => {
+  const original = { textContent: 'Here are our services.' };
+  const rows = [];
+  const a = Object.assign(Object.create(prototype), {
+    messageRole: 'assistant', messageNode: original,
+    transcriptInner: { append: row => rows.push(row) }, scrollTranscript: () => {},
+  });
+  a.setAssistantText('Anything else?', true);
+  assert.equal(original.textContent, 'Here are our services.');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].children[0].textContent, 'Anything else?');
+  a.setAssistantText('Anything else you are looking for?');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].children[0].textContent, 'Anything else you are looking for?');
+});
 test('service requests wait for the reply before scrolling, and scroll once per reply', () => {
   const a = Object.create(prototype); a.inline = true;
   scrolls.length = 0;

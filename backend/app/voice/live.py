@@ -100,7 +100,7 @@ async def live_call(ws):
                 worker = asyncio.create_task(audio_worker())
                 try:
                     if greeting:
-                        await send({'type': 'assistant_text', 'text': text})
+                        await send({'type': 'assistant_text', 'text': text, 'new_message': True})
                         await sentences.put(text)
                     else:
                         await send({'type': 'final_transcript', 'text': text})

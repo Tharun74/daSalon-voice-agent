@@ -254,7 +254,8 @@ class SalonVoice {
     this.updateMessage('user', text);
   }
 
-  setAssistantText(text) {
+  setAssistantText(text, newMessage = false) {
+    if (newMessage) { this.messageNode = null; this.messageRole = null; }
     this.updateMessage('assistant', text);
     if (this.view === 'text' && this.menuNavigationPending) {
       this.showServices();
@@ -297,7 +298,7 @@ class SalonVoice {
       if (this.view === 'voice' && this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({type:'menu_followup'}));
       } else {
-        this.setAssistantText(text);
+        this.setAssistantText(text, true);
         if (this.view === 'voice') { this.queue.push({text, language:this.cfg.language_default}); this.playNext(); }
       }
     }, 5000);
@@ -720,7 +721,7 @@ class SalonVoice {
       } else if (event.type === 'assistant_text_delta') {
         this.delta = (this.delta || '') + event.text; this.setAssistantText(this.delta);
       } else if (event.type === 'assistant_text') {
-        this.append('bot',event.text); this.setAssistantText(event.text);
+        this.append('bot',event.text); this.setAssistantText(event.text, event.new_message === true);
         this.refreshBooking();
       } else if (event.type === 'speech') {
         this.queue.push(event); this.playNext();

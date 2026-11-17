@@ -11,7 +11,7 @@ export default function VoiceWidget() {
     const init = async () => {
       const win = window as any;
       if (!win.SalonVoice && !win.glowVoiceLoading) win.glowVoiceLoading = new Promise<void>((resolve, reject) => {
-        const script = document.createElement('script'); script.src = '/voice/voice.js?v=concierge-card-2'; script.onload = () => resolve(); script.onerror = reject; document.head.append(script);
+        const script = document.createElement('script'); script.src = '/voice/voice.js?v=concierge-card-3'; script.onload = () => resolve(); script.onerror = reject; document.head.append(script);
       });
       if (!win.SalonVoice) await win.glowVoiceLoading;
       if (disposed || !host.current) return;

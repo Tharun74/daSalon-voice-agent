@@ -7,7 +7,9 @@ from app.voice.formatter import language_for
 
 def is_yes(text):
     return re.sub(r"[,.!?।]", "", text.strip().lower()) in {
-        "okay", "ok", "ஆம்", "ஆமாம்", "சரி", "yes", "yes please", "confirm", "yes confirm", "yes book it", "yes book that", "book it", "go ahead", "haan", "han", "ji haan", "हाँ", "हां", "जी हाँ"
+        "okay", "ok", "ஆம்", "ஆமாம்", "சரி", "yes", "yes please", "confirm", "yes confirm", "yes book it", "yes book that", "book it", "go ahead", "haan", "han", "ji haan", "हाँ", "हां", "जी हाँ",
+        "yes i confirm", "yes i confirm those details", "yes please book it",
+        "yes i confirm those details please book this demo appointment"
     }
 
 

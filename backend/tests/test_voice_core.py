@@ -33,6 +33,9 @@ def test_confirmation_exact_and_expiring():
     assert not prepare_booking({**args, 'phone':'123'}, pending, 'yes')[0]
     assert not prepare_booking(args, {**pending, 'expires':0}, 'yes')[0]
     assert not prepare_booking(args, pending, 'yes but change time')[0]
+    assert prepare_booking(args, pending, 'Yes, I confirm those details. Please book this demo appointment.')[0]
+    assert not prepare_booking(args, None, 'Yes, I confirm those details. Please book this demo appointment.')[0]
+    assert not prepare_booking(args, pending, 'Yes, I confirm those details, but change the time.')[0]
 
 
 def test_defaults_and_provider_selection(monkeypatch):
