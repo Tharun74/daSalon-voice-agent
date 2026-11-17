@@ -33,7 +33,7 @@ def language_for(text, default="en-IN"):
     return "en-IN" if re.search(r"[a-zA-Z]", text) else default
 
 
-def speakable(text):
+def speakable(text, normalize_numbers=True):
     text = re.sub(r"```[\s\S]*?```", "", text)
     text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
     text = re.sub(r"https?://\S+", "", text)
@@ -41,6 +41,10 @@ def speakable(text):
     text = re.sub(r"^[\s]*[#>*-]+\s*|^\s*\d+\.\s+", "", text, flags=re.M)
     text = re.sub(r"[|*_`~]", " ", text)
     text = "".join(c for c in text if unicodedata.category(c) != "So" and c not in "\ufe0f\u200d")
+    if not normalize_numbers:
+        for short, full in [(r"\bmins?\b", "minutes"), (r"\bhrs?\b", "hours"), (r"\bappt\b", "appointment")]:
+            text = re.sub(short, full, text, flags=re.I)
+        return re.sub(r"\s+", " ", text).strip()
     text = re.sub(r"(?:Rs\.?|INR|₹)\s*([\d,]+)(?:\.(\d{1,2}))?",
                   lambda m: number(int(m[1].replace(",", ""))) + " rupees" +
                   (" and " + number(int(m[2].ljust(2, '0'))) + " paise" if m[2] else ""), text)

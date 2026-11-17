@@ -5,6 +5,7 @@ import json
 import os
 from urllib.parse import urlencode
 from websockets.asyncio.client import connect
+from app.voice.sarvam_config import speech_profile
 
 async def socket(path, query):
     key = os.environ.get('SARVAM_API_KEY')
@@ -43,17 +44,24 @@ class LiveTTS:
     def __init__(self, cfg):
         self.cfg = cfg.model_copy(deep=True)
         self.ws = None
+        self.model = None
 
-    async def open(self):
+    async def open(self, language=None):
+        model, _ = speech_profile(self.cfg.voice_id, language or self.cfg.language_default)
+        if self.ws is not None and self.model != model:
+            await self.close()
         if self.ws is None:
-            self.ws = await socket('text-to-speech/ws', {'model': 'bulbul:v3', 'send_completion_event': 'true'})
+            self.ws = await socket('text-to-speech/ws', {'model': model, 'send_completion_event': 'true'})
+            self.model = model
         return self
 
     async def stream(self, text, language):
-        await self.open()
+        await self.open(language)
+        _, voice = speech_profile(self.cfg.voice_id, language)
         await self.ws.send(json.dumps({'type': 'config', 'data': {
-            'speaker': self.cfg.voice_id, 'language_code': language,
+            'speaker': voice, 'language_code': language,
             'pace': self.cfg.pace, 'speech_sample_rate': 24000,
+            'enable_preprocessing': True,
             'output_audio_codec': 'linear16'}}))
         await self.ws.send(json.dumps({'type': 'text', 'data': {'text': text}}))
         await self.ws.send(json.dumps({'type': 'flush'}))

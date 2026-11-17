@@ -9,6 +9,7 @@ from app.voice.formatter import SentenceChunker
 
 
 def test_provider_wire_contracts_and_failure(monkeypatch):
+    monkeypatch.setenv('TTS_MODEL', 'bulbul:v4-flash')
     requests = []
     def handle(request):
         requests.append(request)
@@ -33,7 +34,9 @@ def test_provider_wire_contracts_and_failure(monkeypatch):
     audio = asyncio.run(tts.SarvamTTS().synthesize('Hello', 'en-IN', 'priya'))
     assert audio == b'RIFFtest'
     payload = json.loads(requests[-1].content)
-    assert payload['language_code'] == 'en-IN' and payload['model'] == 'bulbul:v3'
+    assert payload['language_code'] == 'en-IN' and payload['model'] == 'bulbul:v4-flash'
+    assert payload['speaker'] == 'simran_en_customer'
+    assert payload['enable_preprocessing'] is True
     assert payload['speech_sample_rate'] == 24000
     assert requests[-1].headers['api-subscription-key'] == 'test-only'
     monkeypatch.setattr(httpx, 'AsyncClient', lambda **kw: original(**kw, transport=httpx.MockTransport(lambda r: httpx.Response(503))))

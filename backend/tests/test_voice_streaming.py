@@ -28,6 +28,7 @@ def test_confirmation_is_not_globally_suppressed():
 
 
 def test_stream_protocol_and_cancel_cleanup(monkeypatch):
+    monkeypatch.setenv('TTS_MODEL', 'bulbul:v4-flash')
     class Socket:
         def __init__(self):
             self.sent=[];self.closed=False
@@ -46,12 +47,33 @@ def test_stream_protocol_and_cancel_cleanup(monkeypatch):
         cfg=VoiceSettings(voice_id='priya');tts=await LiveTTS(cfg).open();cfg.voice_id='rahul'
         stream=tts.stream('Hello','ta-IN')
         assert len(await anext(stream))==640
-        assert sockets[1].sent[0]['data']['speaker']=='priya'
+        assert queries[1]['model']=='bulbul:v4-flash'
+        assert sockets[1].sent[0]['data']['speaker']=='gokul_ta_narration'
         assert sockets[1].sent[0]['data']['language_code']=='ta-IN'
+        assert sockets[1].sent[0]['data']['enable_preprocessing'] is True
+        assert sockets[1].sent[0]['data']['speech_sample_rate']==24000
         await stream.aclose()
         assert sockets[1].closed
         await stt.close()
     asyncio.run(check())
+
+
+def test_v4_profiles_and_cache_isolation(monkeypatch):
+    from app.voice.sarvam_config import speech_profile
+    from app.voice.cache import cache_path
+    from app.voice.formatter import speakable
+    monkeypatch.setenv('TTS_MODEL', 'bulbul:v4-flash')
+    assert speech_profile('priya','en-IN') == ('bulbul:v4-flash','simran_en_customer')
+    assert speech_profile('priya','hi-IN') == ('bulbul:v4-flash','simran_enhi_customer')
+    assert speech_profile('priya','ml-IN') == ('bulbul:v3','priya')
+    assert speech_profile('priya','od-IN') == ('bulbul:v3','priya')
+    cfg=VoiceSettings(voice_id='priya')
+    v4=cache_path(cfg,'Welcome','en-IN')
+    monkeypatch.setenv('TTS_MODEL','bulbul:v3')
+    assert cache_path(cfg,'Welcome','en-IN') != v4
+    assert speech_profile('priya','en-IN') == ('bulbul:v3','priya')
+    # v4 normalizes currency and times in the target language, not English.
+    assert speakable('**₹1,200** at 14:05, 45 mins', normalize_numbers=False) == '₹1,200 at 14:05, 45 minutes'
 
 
 def test_live_socket_multiple_turns_and_backchannel(monkeypatch):

@@ -12,6 +12,7 @@ from fastapi import HTTPException, WebSocketDisconnect
 from app.chat import run_turn_stream
 from app.service_browsing import is_menu_request, MENU_FOLLOWUP
 from app.voice.streaming import LiveSTT, LiveTTS
+from app.voice.sarvam_config import speech_profile
 from app.voice.formatter import SentenceChunker, speakable, language_for
 from app.voice.session import validate_session, reserve, limit, record_usage, IDLE_SECONDS, SESSION_SECONDS
 
@@ -41,6 +42,8 @@ async def live_call(ws):
             await ws.accept()
             await asyncio.gather(recognizer.open(), speaker.open())
             await ws.send_json({'type': 'state', 'state': 'listening', 'streaming_stt': True,
+                                'tts_model': speech_profile(cfg.voice_id, language)[0],
+                                'tts_voice_id': speech_profile(cfg.voice_id, language)[1],
                                 'audio_format': 'pcm_s16le', 'sample_rate': 24000, 'session_id': session})
 
             async def interrupt():
@@ -72,10 +75,10 @@ async def live_call(ws):
                         sentence = await sentences.get()
                         if sentence is None:
                             return
-                        speech = speakable(sentence)
+                        lang = language_for(sentence, language)
+                        speech = speakable(sentence, normalize_numbers=speech_profile(cfg.voice_id, lang)[0] != 'bulbul:v4-flash')
                         if not speech:
                             continue
-                        lang = language_for(sentence, language)
                         t0 = time.perf_counter()
                         from app.voice.cache import cached_pcm
                         cached = cached_pcm(cfg, speech, lang)
@@ -105,7 +108,7 @@ async def live_call(ws):
                     else:
                         await send({'type': 'final_transcript', 'text': text})
                         iterator = run_turn_stream(salon, session, text, cancel=token, turn_id=turn_id)
-                        chunker = SentenceChunker()
+                        chunker = SentenceChunker(limit=500)
                         spoken, tool_wait, filler_sent = '', False, False
                         llm_start = time.perf_counter()
                         first_event = True

@@ -3,10 +3,12 @@ import hashlib
 import io
 from pathlib import Path
 import wave
+from app.voice.sarvam_config import speech_profile
 ROOT = Path(__file__).resolve().parents[2] / 'data' / 'voice-cache'
 
 def cache_path(cfg, text, language):
-    key = f'bulbul:v3|{cfg.voice_id}|{cfg.pace}|{language}|{text}'
+    model, voice = speech_profile(cfg.voice_id, language)
+    key = f'{model}|{voice}|{cfg.pace}|preprocessing-v1|24000|{language}|{text}'
     return ROOT / (hashlib.sha256(key.encode()).hexdigest() + '.wav')
 
 def cached_pcm(cfg, text, language):

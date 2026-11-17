@@ -11,6 +11,7 @@ from app.db import get_db
 from app.voice import stt, tts
 from app.voice.formatter import speakable, language_for, SentenceChunker
 from app.voice.settings import settings_for, enabled
+from app.voice.sarvam_config import speech_profile
 from app.voice.session import validate_session, validate_audio, limit, reserve, record_usage, MAX_BYTES
 
 router = APIRouter(prefix="/voice", tags=["voice"])
@@ -50,7 +51,9 @@ def admin_access(request: Request):
 @router.get("/config/{salon_id}")
 def public_config(salon_id: str):
     cfg = settings_for(salon_id, require_enabled=False)
+    model, voice = speech_profile(cfg.voice_id, cfg.language_default)
     return {**cfg.model_dump(), "enabled": enabled() and cfg.enabled,
+            "tts_model": model, "tts_voice_id": voice,
             "stt": "browser" if cfg.provider == 'browser' or type(stt.get_stt()) is stt.BrowserSTT else "server",
             "tts": "browser" if type(tts.get_tts(cfg)) is tts.BrowserTTS else "server",
             "streaming_stt": bool(os.getenv("SARVAM_API_KEY")) and cfg.provider != 'browser', "input_format": "pcm_s16le", "sample_rate": 16000,
@@ -58,13 +61,13 @@ def public_config(salon_id: str):
 
 
 async def speech_output(reply, cfg):
-    text = speakable(reply)
     language = language_for(reply, cfg.language_default)
+    text = speakable(reply, normalize_numbers=speech_profile(cfg.voice_id, language)[0] != "bulbul:v4-flash")
     audios = []
     started = time.perf_counter()
     first_byte = None
     try:
-        chunks = SentenceChunker().feed(text, final=True)
+        chunks = SentenceChunker(limit=500).feed(text, final=True)
         if not chunks and text.strip():
             chunks = [text.strip()]
         tts_engine = tts.get_tts(cfg)
