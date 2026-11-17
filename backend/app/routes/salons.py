@@ -48,7 +48,12 @@ def get_salon_details(salon_id: str):
 def read_bot_config(salon_id: str, request: Request):
     from app.voice.routes import admin_access
     admin_access(request)
-    return serialize_doc(get_db().bot_configs.find_one({'salon_id': salon_id})) or {}
+    from app.voice.sarvam_config import V4_VOICES
+    cfg = serialize_doc(get_db().bot_configs.find_one({'salon_id': salon_id})) or {}
+    if cfg:
+        cfg['voice'] = VoiceSettings(**(cfg.get('voice') or {})).model_dump()
+        cfg['voice_options'] = V4_VOICES
+    return cfg
 
 @router.put("/{salon_id}/bot-config")
 def update_bot_config(salon_id: str, update: BotConfigUpdate, request: Request):

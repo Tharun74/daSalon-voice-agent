@@ -46,11 +46,14 @@ class SarvamTTS(BrowserTTS):
     - bulbul:v3: 30+ named speakers, temperature control for expressiveness
     """
 
+    def __init__(self, settings=None):
+        self.settings = settings.model_copy(deep=True) if settings else None
+
     async def synthesize(self, text, language, voice, pace=1):
         if not text or len(text) > 2500:
             raise BrowserFallback("Speech chunk is empty or too long.")
         lang = language if language in SUPPORTED_LANGUAGES else "en-IN"
-        model, speaker = speech_profile(voice, lang)
+        model, speaker = speech_profile(voice, lang, self.settings)
 
         if model == "bulbul:v4-flash":
             payload = {
@@ -106,5 +109,5 @@ def get_tts(settings=None):
     if provider == "browser" or (settings and settings.provider == "browser"):
         return BrowserTTS()
     if (provider == "sarvam" or not provider) and os.getenv("SARVAM_API_KEY"):
-        return SarvamTTS()
+        return SarvamTTS(settings)
     return BrowserTTS()

@@ -61,9 +61,10 @@ def speakable(text, normalize_numbers=True):
 
 
 class SentenceChunker:
-    def __init__(self, limit=220):
+    def __init__(self, limit=220, prefer_clauses=False):
         self.buffer = ""
         self.limit = limit
+        self.prefer_clauses = prefer_clauses
 
     def feed(self, text, final=False):
         self.buffer += text
@@ -72,6 +73,11 @@ class SentenceChunker:
             boundary = next((m for m in re.finditer(r"[.!?।](?:\s|$)", self.buffer)
                 if not re.search(r"\b(?:Rs|Dr|Mr|Mrs|Ms)\.$", self.buffer[:m.start()+1], re.I)), None)
             end = boundary.end() if boundary else 0
+            if not end and self.prefer_clauses and len(self.buffer) >= 120:
+                # A comma inside 1,200 is not a spoken pause.
+                clauses = list(re.finditer(r"[;,،，](?:\s|$)", self.buffer[:self.limit]))
+                if clauses:
+                    end = clauses[-1].end()
             if not end and len(self.buffer) >= self.limit:
                 end = self.buffer.rfind(" ", 0, self.limit) or self.limit
             if not end and final:

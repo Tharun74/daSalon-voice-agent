@@ -11,7 +11,7 @@ from app.db import get_db
 from app.voice import stt, tts
 from app.voice.formatter import speakable, language_for, SentenceChunker
 from app.voice.settings import settings_for, enabled
-from app.voice.sarvam_config import speech_profile
+from app.voice.sarvam_config import profile_for
 from app.voice.session import validate_session, validate_audio, limit, reserve, record_usage, MAX_BYTES
 
 router = APIRouter(prefix="/voice", tags=["voice"])
@@ -51,7 +51,7 @@ def admin_access(request: Request):
 @router.get("/config/{salon_id}")
 def public_config(salon_id: str):
     cfg = settings_for(salon_id, require_enabled=False)
-    model, voice = speech_profile(cfg.voice_id, cfg.language_default)
+    model, voice = profile_for(cfg, cfg.language_default)
     return {**cfg.model_dump(), "enabled": enabled() and cfg.enabled,
             "tts_model": model, "tts_voice_id": voice,
             "stt": "browser" if cfg.provider == 'browser' or type(stt.get_stt()) is stt.BrowserSTT else "server",
@@ -62,7 +62,7 @@ def public_config(salon_id: str):
 
 async def speech_output(reply, cfg):
     language = language_for(reply, cfg.language_default)
-    text = speakable(reply, normalize_numbers=speech_profile(cfg.voice_id, language)[0] != "bulbul:v4-flash")
+    text = speakable(reply, normalize_numbers=profile_for(cfg, language)[0] != "bulbul:v4-flash")
     audios = []
     started = time.perf_counter()
     first_byte = None

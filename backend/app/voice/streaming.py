@@ -5,7 +5,7 @@ import json
 import os
 from urllib.parse import urlencode
 from websockets.asyncio.client import connect
-from app.voice.sarvam_config import speech_profile
+from app.voice.sarvam_config import profile_for
 
 async def socket(path, query):
     key = os.environ.get('SARVAM_API_KEY')
@@ -47,7 +47,7 @@ class LiveTTS:
         self.model = None
 
     async def open(self, language=None):
-        model, _ = speech_profile(self.cfg.voice_id, language or self.cfg.language_default)
+        model, _ = profile_for(self.cfg, language or self.cfg.language_default)
         if self.ws is not None and self.model != model:
             await self.close()
         if self.ws is None:
@@ -57,7 +57,7 @@ class LiveTTS:
 
     async def stream(self, text, language):
         await self.open(language)
-        _, voice = speech_profile(self.cfg.voice_id, language)
+        _, voice = profile_for(self.cfg, language)
         await self.ws.send(json.dumps({'type': 'config', 'data': {
             'speaker': voice, 'language_code': language,
             'pace': self.cfg.pace, 'speech_sample_rate': 24000,

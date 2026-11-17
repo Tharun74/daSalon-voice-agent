@@ -39,6 +39,12 @@ def test_provider_wire_contracts_and_failure(monkeypatch):
     assert payload['enable_preprocessing'] is True
     assert payload['speech_sample_rate'] == 24000
     assert requests[-1].headers['api-subscription-key'] == 'test-only'
+    from app.voice.settings import VoiceSettings
+    cfg=VoiceSettings(v4_voice_id='neha_en_customer',v4_language_voices={'ta-IN':'gokul_ta_narration'})
+    asyncio.run(tts.get_tts(cfg).synthesize('Hello','en-IN',cfg.voice_id))
+    assert json.loads(requests[-1].content)['speaker']=='neha_en_customer'
+    asyncio.run(tts.get_tts(cfg).synthesize('Hello','ta-IN',cfg.voice_id))
+    assert json.loads(requests[-1].content)['speaker']=='gokul_ta_narration'
     monkeypatch.setattr(httpx, 'AsyncClient', lambda **kw: original(**kw, transport=httpx.MockTransport(lambda r: httpx.Response(503))))
     with pytest.raises(stt.BrowserFallback):
         asyncio.run(tts.SarvamTTS().synthesize('Hello', 'en-IN', 'priya'))
